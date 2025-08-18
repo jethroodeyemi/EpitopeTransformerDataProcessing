@@ -1,0 +1,9 @@
+.venv
+cleaned_pdb_files/
+embedding_cache/
+antigen_only_pdb_files/
+models/
+pdb_files/
+output/
+.vscode/
+__pycache__/
