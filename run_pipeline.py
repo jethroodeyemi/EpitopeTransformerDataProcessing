@@ -24,13 +24,13 @@ def main():
     try:
         # Step 1 & 2: Filter TSV and download PDBs
         deduped_df = dp.filter_and_deduplicate_tsv(config.INPUT_TSV, config.DEDUPED_TSV)
-        # dp.download_pdbs(deduped_df, config.PDB_DIR)
+        dp.download_pdbs(deduped_df, config.PDB_DIR)
 
-        # # Step 3: Clean PDB files
-        # sp.clean_pdbs(deduped_df, config.PDB_DIR, config.CLEANED_PDB_DIR, config.ANTIGEN_ONLY_PDB_DIR)
+        # Step 3: Clean PDB files
+        sp.clean_pdbs(deduped_df, config.PDB_DIR, config.CLEANED_PDB_DIR, config.ANTIGEN_ONLY_PDB_DIR)
         
-        # # Step 4: Generate features and labels
-        # fe.generate_features_and_labels(deduped_df, config.CLEANED_PDB_DIR, config.ANTIGEN_ONLY_PDB_DIR)
+        # Step 4: Generate features and labels
+        fe.generate_features_and_labels(deduped_df, config.CLEANED_PDB_DIR, config.ANTIGEN_ONLY_PDB_DIR)
 
         # Step 5: Perform sequence clustering and create data splits ---
         sc.extract_sequences_to_fasta(deduped_df, config.ANTIGEN_ONLY_PDB_DIR, config.FASTA_PATH)

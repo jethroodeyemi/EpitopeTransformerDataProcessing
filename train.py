@@ -28,7 +28,7 @@ def train_cv(X_train_val, y_train_val, groups_train_val):
         'random_state': 42
     }
 
-    n_splits = 2
+    n_splits = 5
     gkf = GroupKFold(n_splits=n_splits)
     
     models, auc_pr_scores, auc_roc_scores = [], [], []

@@ -7,3 +7,5 @@ pdb_files/
 output/
 .vscode/
 __pycache__/
+build/
+dist/
