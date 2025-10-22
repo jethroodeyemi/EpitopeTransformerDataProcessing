@@ -51,7 +51,7 @@ SASA_MAX_VALUES = {
 
 # --- Model Configuration ---
 # Choose 'esm2', 'esm_if1', or 'both'
-EMBEDDING_MODE = 'both'
+EMBEDDING_MODE = 'esm_if1'
 FORCE_RECOMPUTE_EMBEDDINGS = False
 ESM2_MODEL_NAME = "esm2_t33_650M_UR50D"
 ESM_IF1_MODEL_NAME = "esm_if1_gvp4_t16_142M_UR50"
