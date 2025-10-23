@@ -16,7 +16,7 @@ STRUCTURED_DATA_PATH = f'{OUTPUT_DIR}/structured_protein_data.pkl'
 
 FASTA_PATH = f'{OUTPUT_DIR}/all_antigen_sequences.fasta'
 CLUSTER_FILE_PATH = f'{OUTPUT_DIR}/protein_clusters' # CD-HIT adds .clstr
-SPLITS_FILE_PATH = f'{OUTPUT_DIR}/data_splits_on_spike_proteins_cluster.json'
+SPLITS_FILE_PATH = f'{OUTPUT_DIR}/data_splits.json'
 CDHIT_THRESHOLD = 0.4
 MAX_CLUSTER_SIZE = 50
 
@@ -51,7 +51,7 @@ SASA_MAX_VALUES = {
 
 # --- Model Configuration ---
 # Choose 'esm2', 'esm_if1', or 'both'
-EMBEDDING_MODE = 'esm_if1'
+EMBEDDING_MODE = 'none'
 FORCE_RECOMPUTE_EMBEDDINGS = False
 ESM2_MODEL_NAME = "esm2_t33_650M_UR50D"
 ESM_IF1_MODEL_NAME = "esm_if1_gvp4_t16_142M_UR50"

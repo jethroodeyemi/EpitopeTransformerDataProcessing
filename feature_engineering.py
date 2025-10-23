@@ -9,10 +9,8 @@ import warnings
 from Bio.PDB import PDBParser, NeighborSearch, Polypeptide, SASA
 from Bio.SeqUtils import seq1
 from tqdm import tqdm
-from esm.inverse_folding.util import CoordBatchConverter
 import esm_embedding as esm_emb
 import pickle
-
 import config # Import our configuration
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -131,6 +129,7 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
         
             esm2_embeddings = None
             esm_if1_embeddings = None
+            embedding = None
             
             # ESM-2
             if config.EMBEDDING_MODE in ['esm2', 'both']:
