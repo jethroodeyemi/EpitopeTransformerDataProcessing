@@ -73,6 +73,53 @@ def get_biophysical_features(structure, antigen_chain_id):
         features[res_id_str] = {"rsa": rsa, "b_factor": b_factor}
     return features
 
+def get_glycosylation_features(structure_for_features, antigen_chain_id, glycosylation_info):
+    """
+    Calculates glycosylation features for each residue based on modes in config.
+    """
+    if not config.GLYCOSYLATION_MODE or not glycosylation_info:
+        return {}
+
+    antigen_chain = structure_for_features[0][antigen_chain_id]
+    residues = [res for res in antigen_chain if Polypeptide.is_aa(res, standard=True)]
+    glycosylation_features = {f"{res.get_id()[1]}{res.get_id()[2]}".strip(): {} for res in residues}
+
+    glycosylated_residue_ids = {site['residue_number'] for site in glycosylation_info}
+    
+    if 'binary' in config.GLYCOSYLATION_MODE:
+        for res in residues:
+            res_id_tuple = res.get_id()
+            res_id_str = f"{res_id_tuple[1]}{res_id_tuple[2]}".strip()
+            is_glycosylated = 1 if res_id_tuple[1] in glycosylated_residue_ids else 0
+            glycosylation_features[res_id_str]["is_glycosylated"] = is_glycosylated
+
+    if 'distance' in config.GLYCOSYLATION_MODE:
+        glycosylated_atoms = []
+        for site in glycosylation_info:
+            try:
+                res = antigen_chain[site['residue_number']]
+                glycosylated_atoms.extend(list(res.get_atoms()))
+            except KeyError:
+                continue
+
+        if not glycosylated_atoms:
+            for res_id_str in glycosylation_features:
+                glycosylation_features[res_id_str]["dist_to_glycosylation"] = config.MAX_GLYCOSYLATION_DISTANCE
+        else:
+            ns = NeighborSearch(glycosylated_atoms)
+            for res in residues:
+                min_dist = config.MAX_GLYCOSYLATION_DISTANCE
+                if 'CA' in res:
+                    ca_atom = res['CA']
+                    nearby_atoms = ns.search(ca_atom.get_coord(), config.MAX_GLYCOSYLATION_DISTANCE, level='A')
+                    if nearby_atoms:
+                        min_dist = min(np.linalg.norm(ca_atom.get_coord() - atom.get_coord()) for atom in nearby_atoms)
+
+                res_id_str = f"{res.get_id()[1]}{res.get_id()[2]}".strip()
+                glycosylation_features[res_id_str]["dist_to_glycosylation"] = min_dist
+            
+    return glycosylation_features
+
 def identify_epitope_residues(structure, h_chain_id, l_chain_id, antigen_chain_id):
     """Identifies epitope residues using a distance threshold."""
     model = structure[0]
@@ -96,7 +143,14 @@ def identify_epitope_residues(structure, h_chain_id, l_chain_id, antigen_chain_i
 def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
     """The main function to process structures and generate the final feature DataFrame."""
     print("\n--- Step 4: Generating Features and Labels ---")
-    
+
+    if config.GLYCOSYLATION_MODE:
+        print(f"Loading glycosylation data from: {config.GLYCOSYLATION_DATA_PATH}")
+        glycosylation_df = pd.read_pickle(config.GLYCOSYLATION_DATA_PATH)
+        glycosylation_df.set_index('pdb_id', inplace=True)
+    else:
+        glycosylation_df = None
+
     models = load_models()
     parser = PDBParser(QUIET=True)
     final_data = []
@@ -126,7 +180,14 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
             # --- Feature & Label Generation ---
             biophysical_feats = get_biophysical_features(structure_for_features, antigen_chain_id)
             epitope_ids = identify_epitope_residues(structure_for_labels, h_chain_id, l_chain_id, antigen_chain_id)
-        
+
+            glycosylation_info = None
+            if glycosylation_df is not None and pdb_id in glycosylation_df.index:
+                glycosylation_info = glycosylation_df.loc[pdb_id, 'glycosylation_info']
+            
+            glycosylation_features = get_glycosylation_features(structure_for_features, antigen_chain_id, glycosylation_info)
+
+
             esm2_embeddings = None
             esm_if1_embeddings = None
             embedding = np.zeros(1, dtype=np.float32)
@@ -170,8 +231,8 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
                     embedding = np.concatenate([esm2_embeddings[i], esm_if1_embeddings[i]])
                 
                 bio_feats = biophysical_feats.get(res_id_str, {"rsa": 0, "b_factor": 0})
-
-                final_data.append({
+                
+                residue_data = {
                     "pdb_id": pdb_id,
                     "antigen_chain": antigen_chain_id,
                     "res_id": res_id_str,
@@ -182,7 +243,16 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
                     "b_factor": bio_feats["b_factor"],
                     "seq_length": len(seq),
                     "embedding": embedding
-                })
+                }
+
+                if 'binary' in config.GLYCOSYLATION_MODE:
+                    glyco_feats = glycosylation_features.get(res_id_str, {"is_glycosylated": 0})
+                    residue_data["is_glycosylated"] = glyco_feats["is_glycosylated"]
+                if 'distance' in config.GLYCOSYLATION_MODE:
+                    glyco_feats = glycosylation_features.get(res_id_str, {"dist_to_glycosylation": config.MAX_GLYCOSYLATION_DISTANCE})
+                    residue_data["dist_to_glycosylation"] = glyco_feats["dist_to_glycosylation"]
+                
+                final_data.append(residue_data)
 
         except Exception as e:
             print(f"Failed to process {pdb_id}. Error: {e}")
@@ -214,14 +284,19 @@ def structure_data_to_dict(df):
         b_factors = group['b_factor'].values.reshape(-1, 1)
         seq_lengths = group['seq_length'].values.reshape(-1, 1)
         rsas = group['rsa'].values.reshape(-1, 1)
+
+        # (L, 1728 + 20 + 1 + 1 + 1)
+        feature_list = [embeddings, seq_onehot, b_factors, seq_lengths, rsas]
+
+        if config.GLYCOSYLATION_MODE == 'binary':
+            is_glycosylated = group['is_glycosylated'].values.reshape(-1, 1)
+            feature_list.append(is_glycosylated)
+        elif config.GLYCOSYLATION_MODE == 'distance':
+            dist_to_glycosylation = group['dist_to_glycosylation'].values.reshape(-1, 1)
+            feature_list.append(dist_to_glycosylation)
+
         X_arr = np.concatenate(
-            [
-                embeddings,             # (L, 1728)
-                seq_onehot,             # (L, 20)
-                b_factors,              # (L, 1)
-                seq_lengths,            # (L, 1)
-                rsas,                   # (L, 1)
-            ],
+            feature_list,
             axis=1,
         )
 
@@ -235,6 +310,13 @@ def structure_data_to_dict(df):
             "rsa": range(embed_dim + 22, embed_dim + 23),
         }
         
+        current_idx = embed_dim + 23
+        if 'binary' in config.GLYCOSYLATION_MODE:
+            feature_idxs["is_glycosylated"] = range(current_idx, current_idx + 1)
+        if 'distance' in config.GLYCOSYLATION_MODE:
+            feature_idxs["dist_to_glycosylation"] = range(current_idx, current_idx + 1)
+
+
         df_stats = pd.DataFrame({
             "pdb_id": pdb_id,
             "chain": group['antigen_chain'].values,
@@ -242,10 +324,15 @@ def structure_data_to_dict(df):
             "residue": group['res_name'].values,
             "is_epitope": group['is_epitope'].values,
             "rsa": group['rsa'].values,
-            "b_factor": group['b_factor'].values, 
+            "b_factor": group['b_factor'].values,
             "length": group['seq_length'].values,
         })
-        
+
+        if 'binary' in config.GLYCOSYLATION_MODE:
+            df_stats['is_glycosylated'] = group['is_glycosylated'].values
+        if 'distance' in config.GLYCOSYLATION_MODE:
+            df_stats['dist_to_glycosylation'] = group['dist_to_glycosylation'].values
+
         output_dict = {
             "pdb_id": pdb_id,
             "X_arr": X_arr.astype(np.float32),

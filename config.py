@@ -9,6 +9,7 @@ PDB_DIR = 'pdb_files'
 CLEANED_PDB_DIR = 'cleaned_pdb_files'
 ANTIGEN_ONLY_PDB_DIR = 'antigen_only_pdb_files'
 EMBEDDING_CACHE_DIR = 'embedding_cache'
+GLYCOSYLATION_DATA_PATH = 'glycosylation/feature_rich_analysis.pkl'
 
 DEDUPED_TSV = f'{OUTPUT_DIR}/epitopes_deduplicated.tsv'
 FINAL_DATAFRAME_PATH = f'{OUTPUT_DIR}/antigen_residue_features.pkl'
@@ -48,6 +49,10 @@ SASA_MAX_VALUES = {
     "X": 169.55,
 }
 
+# --- Glycosylation Feature Engineering ---
+# A list that can contain 'binary', 'distance', or both. Set to [] to disable.
+GLYCOSYLATION_MODE = ['binary', 'distance']
+MAX_GLYCOSYLATION_DISTANCE = 20.0 # Max distance for the distance feature (in Angstroms)
 
 # --- Model Configuration ---
 # Choose 'esm2', 'esm_if1', or 'both'
