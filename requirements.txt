@@ -4,8 +4,10 @@
 # Install PyTorch with CUDA 12.8 support using:
 # pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 # pip install --no-index torch-scatter -f https://pytorch-geometric.com/whl/torch-2.5.1+cu121.html
-# torch-geometric==2.7.0
 # sudo apt-get install build-essential python3-dev
+torch-geometric==2.6.1
+wheel
+setuptools
 biotite
 
 # Core Machine Learning & Data Science

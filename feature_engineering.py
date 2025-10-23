@@ -129,7 +129,7 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
         
             esm2_embeddings = None
             esm_if1_embeddings = None
-            embedding = None
+            embedding = np.zeros(1, dtype=np.float32)
             
             # ESM-2
             if config.EMBEDDING_MODE in ['esm2', 'both']:
