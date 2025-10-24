@@ -13,6 +13,7 @@ import esm_embedding as esm_emb
 import pickle
 import config # Import our configuration
 import ast
+from sklearn.decomposition import PCA
 
 warnings.filterwarnings("ignore", category=UserWarning)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -161,10 +162,20 @@ def identify_epitope_residues(structure, h_chain_id, l_chain_id, antigen_chain_i
     }
     return epitope_residues
 
+def train_and_save_pca(all_embeddings, model_path, target_dim):
+    """Trains a PCA model on a list of embeddings and saves it to a file."""
+    print(f"Training PCA model for target dimension {target_dim}...")
+    stacked_embeddings = np.vstack(all_embeddings)
+    pca = PCA(n_components=target_dim)
+    pca.fit(stacked_embeddings)
+    with open(model_path, 'wb') as f:
+        pickle.dump(pca, f)
+    print(f"PCA model saved to {model_path}")
+    return pca
+
 def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
     """The main function to process structures and generate the final feature DataFrame."""
     print("\n--- Step 4: Generating Features and Labels ---")
-
     if config.GLYCOSYLATION_MODE:
         csv_path = config.GLYCOSYLATION_DATA_PATH
         print(f"Loading glycosylation data from: {csv_path}")
@@ -178,6 +189,74 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
 
     models = load_models()
     parser = PDBParser(QUIET=True)
+    
+    # --- PCA Model Training/Loading Phase ---
+    pca_models = {}
+    # Handle ESM2 PCA
+    if config.REDUCE_ESM2_DIM and config.EMBEDDING_MODE in ['esm2', 'both']:
+        pca_model_path = os.path.join(config.PCA_MODEL_CACHE_DIR, f"esm2_pca_{config.ESM2_DIM_TARGET}.pkl")
+        if os.path.exists(pca_model_path):
+            print(f"Loading existing ESM2 PCA model from {pca_model_path}")
+            with open(pca_model_path, 'rb') as f:
+                pca_models['esm2'] = pickle.load(f)
+        else:
+            print("ESM2 PCA model not found. Training a new one...")
+            all_esm2_embeddings = []
+            for _, row in tqdm(df.iterrows(), total=len(df), desc="Gathering ESM2 embeddings for PCA"):
+                pdb_id, antigen_chain_id = row['pdb'], row['antigen_chain']
+                antigen_only_path = os.path.join(antigen_only_pdb_dir, f"{pdb_id}_antigen_only.pdb")
+                if not os.path.exists(antigen_only_path): continue
+                
+                structure = parser.get_structure(f"{pdb_id}_antigen_only", antigen_only_path)
+                residues = [res for res in structure[0][antigen_chain_id] if Polypeptide.is_aa(res, standard=True)]
+                seq = "".join([seq1(res.get_resname()) for res in residues])
+                if not seq: continue
+                
+                cache_path = os.path.join(config.EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm2.npy")
+                if os.path.exists(cache_path):
+                    embeddings = np.load(cache_path)
+                else:
+                    embeddings = esm_emb.get_esm2_embedding(models['esm2'], seq)
+                    if embeddings is not None: np.save(cache_path, embeddings)
+                
+                if embeddings is not None:
+                    all_esm2_embeddings.append(embeddings)
+            
+            if all_esm2_embeddings:
+                pca_models['esm2'] = train_and_save_pca(all_esm2_embeddings, pca_model_path, config.ESM2_DIM_TARGET)
+            else:
+                print("Warning: No ESM2 embeddings found to train PCA model.")
+
+    # Handle ESM-IF1 PCA
+    if config.REDUCE_ESM_IF1_DIM and config.EMBEDDING_MODE in ['esm_if1', 'both']:
+        pca_model_path = os.path.join(config.PCA_MODEL_CACHE_DIR, f"esm_if1_pca_{config.ESM_IF1_DIM_TARGET}.pkl")
+        if os.path.exists(pca_model_path):
+            print(f"Loading existing ESM-IF1 PCA model from {pca_model_path}")
+            with open(pca_model_path, 'rb') as f:
+                pca_models['esm_if1'] = pickle.load(f)
+        else:
+            print("ESM-IF1 PCA model not found. Training a new one...")
+            all_esm_if1_embeddings = []
+            for _, row in tqdm(df.iterrows(), total=len(df), desc="Gathering ESM-IF1 embeddings for PCA"):
+                pdb_id, antigen_chain_id = row['pdb'], row['antigen_chain']
+                antigen_only_path = os.path.join(antigen_only_pdb_dir, f"{pdb_id}_antigen_only.pdb")
+                if not os.path.exists(antigen_only_path): continue
+
+                cache_path = os.path.join(config.EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm_if1.npy")
+                if os.path.exists(cache_path):
+                    embeddings = np.load(cache_path)
+                else:
+                    embeddings = esm_emb.get_esm_if1_embedding(models['esm_if1'], antigen_only_path, antigen_chain_id)
+                    if embeddings is not None: np.save(cache_path, embeddings)
+
+                if embeddings is not None:
+                    all_esm_if1_embeddings.append(embeddings)
+
+            if all_esm_if1_embeddings:
+                pca_models['esm_if1'] = train_and_save_pca(all_esm_if1_embeddings, pca_model_path, config.ESM_IF1_DIM_TARGET)
+            else:
+                print("Warning: No ESM-IF1 embeddings found to train PCA model.")
+                
     final_data = []
 
     for _, row in tqdm(df.iterrows(), total=len(df), desc="Processing Structures"):
@@ -196,13 +275,11 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
             structure_for_features = parser.get_structure(f"{pdb_id}_antigen_only", antigen_only_path)
             antigen_chain = structure_for_features[0][antigen_chain_id]
             
-            # --- Get Sequence and Residue Info ---
             residues = [res for res in antigen_chain if Polypeptide.is_aa(res, standard=True)]
             if not residues: continue
             
             seq = "".join([seq1(res.get_resname()) for res in residues])
             
-            # --- Feature & Label Generation ---
             biophysical_feats = get_biophysical_features(structure_for_features, antigen_chain_id)
             epitope_ids = identify_epitope_residues(structure_for_labels, h_chain_id, l_chain_id, antigen_chain_id)
 
@@ -226,8 +303,17 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
                     esm2_embeddings = esm_emb.get_esm2_embedding(models['esm2'], seq)
                     if esm2_embeddings is not None:
                         np.save(cache_path, esm2_embeddings)
-                        
                 
+                # Apply PCA if enabled and model is available
+                if 'esm2' in pca_models and esm2_embeddings is not None:
+                    pca_cache_path = os.path.join(config.PCA_EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm2_pca_{config.ESM2_DIM_TARGET}.npy")
+                    if os.path.exists(pca_cache_path) and not config.FORCE_RECOMPUTE_EMBEDDINGS:
+                        esm2_embeddings = np.load(pca_cache_path)
+                    else:
+                        transformed_embeddings = pca_models['esm2'].transform(esm2_embeddings)
+                        np.save(pca_cache_path, transformed_embeddings)
+                        esm2_embeddings = transformed_embeddings
+                        
             # ESM-IF1
             if config.EMBEDDING_MODE in ['esm_if1', 'both']:
                 cache_path = os.path.join(config.EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm_if1.npy")
@@ -237,14 +323,22 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
                     esm_if1_embeddings = esm_emb.get_esm_if1_embedding(models['esm_if1'], antigen_only_path, antigen_chain_id)
                     if esm_if1_embeddings is not None:
                         np.save(cache_path, esm_if1_embeddings)
-                        
+                
+                # Apply PCA if enabled and model is available
+                if 'esm_if1' in pca_models and esm_if1_embeddings is not None:
+                    pca_cache_path = os.path.join(config.PCA_EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm_if1_pca_{config.ESM_IF1_DIM_TARGET}.npy")
+                    if os.path.exists(pca_cache_path) and not config.FORCE_RECOMPUTE_EMBEDDINGS:
+                        esm_if1_embeddings = np.load(pca_cache_path)
+                    else:
+                        transformed_embeddings = pca_models['esm_if1'].transform(esm_if1_embeddings)
+                        np.save(pca_cache_path, transformed_embeddings)
+                        esm_if1_embeddings = transformed_embeddings
 
             # --- Assemble per-residue data ---
             for i, res in enumerate(residues):
                 res_id_tuple = res.get_id()
                 res_id_str = f"{res_id_tuple[1]}{res_id_tuple[2]}".strip()
                 
-                # Combine embeddings based on config
                 if config.EMBEDDING_MODE == 'esm2':
                     if esm2_embeddings is None or i >= len(esm2_embeddings): continue
                     embedding = esm2_embeddings[i]
@@ -270,7 +364,6 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
                     "embedding": embedding
                 }
 
-                # Add glycosylation features if they exist for the current residue
                 glyco_feats = glycosylation_features.get(res_id_str, {})
                 if 'binary' in config.GLYCOSYLATION_MODE:
                     residue_data["is_glycosylated"] = glyco_feats.get("is_glycosylated", 0)
@@ -292,7 +385,6 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
     final_df.to_pickle(config.FINAL_DATAFRAME_PATH)
     print(f"\nFinal DataFrame saved to: {config.FINAL_DATAFRAME_PATH}")
 
-    # Convert to structured data format
     structure_data_to_dict(final_df)
 
     return final_df
@@ -310,7 +402,6 @@ def structure_data_to_dict(df):
         seq_lengths = group['seq_length'].values.reshape(-1, 1)
         rsas = group['rsa'].values.reshape(-1, 1)
 
-        # (L, 1728 + 20 + 1 + 1 + 1)
         feature_list = [embeddings, seq_onehot, b_factors, seq_lengths, rsas]
 
         if 'binary' in config.GLYCOSYLATION_MODE:

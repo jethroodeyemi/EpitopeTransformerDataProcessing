@@ -9,6 +9,8 @@ PDB_DIR = 'pdb_files'
 CLEANED_PDB_DIR = 'cleaned_pdb_files'
 ANTIGEN_ONLY_PDB_DIR = 'antigen_only_pdb_files'
 EMBEDDING_CACHE_DIR = 'embedding_cache'
+PCA_MODEL_CACHE_DIR = 'pca_models'
+PCA_EMBEDDING_CACHE_DIR = 'pca_embedding_cache'
 GLYCOSYLATION_DATA_PATH = 'glycosylation/feature_rich_analysis.csv'
 
 DEDUPED_TSV = f'{OUTPUT_DIR}/epitopes_deduplicated.tsv'
@@ -56,13 +58,13 @@ MAX_GLYCOSYLATION_DISTANCE = 20.0 # Max distance for the distance feature (in An
 
 # --- Model Configuration ---
 # Choose 'esm2', 'esm_if1', or 'both'
-EMBEDDING_MODE = 'none'
+EMBEDDING_MODE = 'both'
 FORCE_RECOMPUTE_EMBEDDINGS = False
 ESM2_MODEL_NAME = "esm2_t33_650M_UR50D"
 ESM_IF1_MODEL_NAME = "esm_if1_gvp4_t16_142M_UR50"
 
 # --- Dimensionality Reduction ---
-REDUCE_ESM_IF1_DIM = True
+REDUCE_ESM_IF1_DIM = False
 ESM_IF1_DIM_TARGET = 64  # Target number of dimensions after PCA (e.g., 64, 128, 256)
 REDUCE_ESM2_DIM = True
 ESM2_DIM_TARGET = 64  # Target number of dimensions after PCA (e.g., 64, 128, 256)

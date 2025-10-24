@@ -17,7 +17,7 @@ def main():
     print("--- STARTING ANTIGEN-EPITOPE PROCESSING PIPELINE ---")
     
     # Create necessary directories
-    for dir_path in [config.OUTPUT_DIR, config.PDB_DIR, config.CLEANED_PDB_DIR, config.ANTIGEN_ONLY_PDB_DIR, config.EMBEDDING_CACHE_DIR]:
+    for dir_path in [config.OUTPUT_DIR, config.PDB_DIR, config.CLEANED_PDB_DIR, config.ANTIGEN_ONLY_PDB_DIR, config.EMBEDDING_CACHE_DIR, config.PCA_MODEL_CACHE_DIR, config.PCA_EMBEDDING_CACHE_DIR]:
         os.makedirs(dir_path, exist_ok=True)
         print(f"Directory '{dir_path}' is ready.")
 
