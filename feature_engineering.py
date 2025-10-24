@@ -208,21 +208,24 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
                 pdb_id, antigen_chain_id = row['pdb'], row['antigen_chain']
                 antigen_only_path = os.path.join(antigen_only_pdb_dir, f"{pdb_id}_antigen_only.pdb")
                 if not os.path.exists(antigen_only_path): continue
-                
-                structure = parser.get_structure(f"{pdb_id}_antigen_only", antigen_only_path)
-                residues = [res for res in structure[0][antigen_chain_id] if Polypeptide.is_aa(res, standard=True)]
-                seq = "".join([seq1(res.get_resname()) for res in residues])
-                if not seq: continue
-                
-                cache_path = os.path.join(config.EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm2.npy")
-                if os.path.exists(cache_path):
-                    embeddings = np.load(cache_path)
-                else:
-                    embeddings = esm_emb.get_esm2_embedding(models['esm2'], seq)
-                    if embeddings is not None: np.save(cache_path, embeddings)
-                
-                if embeddings is not None:
-                    all_esm2_embeddings.append(embeddings)
+                try:                
+                    structure = parser.get_structure(f"{pdb_id}_antigen_only", antigen_only_path)
+                    residues = [res for res in structure[0][antigen_chain_id] if Polypeptide.is_aa(res, standard=True)]
+                    seq = "".join([seq1(res.get_resname()) for res in residues])
+                    if not seq: continue
+                    
+                    cache_path = os.path.join(config.EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm2.npy")
+                    if os.path.exists(cache_path):
+                        embeddings = np.load(cache_path)
+                    else:
+                        embeddings = esm_emb.get_esm2_embedding(models['esm2'], seq)
+                        if embeddings is not None: np.save(cache_path, embeddings)
+                    
+                    if embeddings is not None:
+                        all_esm2_embeddings.append(embeddings)
+                except Exception as e:
+                    print(f"\nERROR: Failed to process PDB {pdb_id} during PCA pre-computation. Error: {e}. Skipping this file.")
+                    continue
             
             if all_esm2_embeddings:
                 pca_models['esm2'] = train_and_save_pca(all_esm2_embeddings, pca_model_path, config.ESM2_DIM_TARGET)
