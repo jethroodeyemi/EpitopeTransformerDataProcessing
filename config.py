@@ -60,3 +60,9 @@ EMBEDDING_MODE = 'none'
 FORCE_RECOMPUTE_EMBEDDINGS = False
 ESM2_MODEL_NAME = "esm2_t33_650M_UR50D"
 ESM_IF1_MODEL_NAME = "esm_if1_gvp4_t16_142M_UR50"
+
+# --- Dimensionality Reduction ---
+REDUCE_ESM_IF1_DIM = True
+ESM_IF1_DIM_TARGET = 64  # Target number of dimensions after PCA (e.g., 64, 128, 256)
+REDUCE_ESM2_DIM = True
+ESM2_DIM_TARGET = 64  # Target number of dimensions after PCA (e.g., 64, 128, 256)

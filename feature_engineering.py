@@ -13,7 +13,6 @@ import esm_embedding as esm_emb
 import pickle
 import config # Import our configuration
 import ast
-from utils.visualize_glycosylation import plot_glycosylation_for_one_chain, plot_glycosylation_for_multiple_chains
 
 warnings.filterwarnings("ignore", category=UserWarning)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
