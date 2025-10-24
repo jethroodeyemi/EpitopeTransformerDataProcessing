@@ -1,7 +1,7 @@
 # config.py
 
 # --- File and Directory Paths ---
-INPUT_TSV = 'dataset.tsv'
+INPUT_TSV = 'test.tsv'
 OUTPUT_DIR = 'output'
 FINAL_MODEL_PATH = 'models/final_model.json'
 EVALUATION_OUTPUT_DIR = 'evaluation_results'
@@ -9,7 +9,7 @@ PDB_DIR = 'pdb_files'
 CLEANED_PDB_DIR = 'cleaned_pdb_files'
 ANTIGEN_ONLY_PDB_DIR = 'antigen_only_pdb_files'
 EMBEDDING_CACHE_DIR = 'embedding_cache'
-GLYCOSYLATION_DATA_PATH = 'glycosylation/feature_rich_analysis.pkl'
+GLYCOSYLATION_DATA_PATH = 'glycosylation/feature_rich_analysis.csv'
 
 DEDUPED_TSV = f'{OUTPUT_DIR}/epitopes_deduplicated.tsv'
 FINAL_DATAFRAME_PATH = f'{OUTPUT_DIR}/antigen_residue_features.pkl'

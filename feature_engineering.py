@@ -12,11 +12,31 @@ from tqdm import tqdm
 import esm_embedding as esm_emb
 import pickle
 import config # Import our configuration
+import ast
+from utils.visualize_glycosylation import plot_glycosylation_for_one_chain, plot_glycosylation_for_multiple_chains
 
 warnings.filterwarnings("ignore", category=UserWarning)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # --- Helper Functions ---
+def parse_custom_glycosylation_string(s):
+    """
+    Parses the semi-colon separated string of dictionary representations
+    from the feature_rich_analysis.csv file.
+    """
+    if pd.isna(s) or not isinstance(s, str):
+        return []
+    dict_strings = s.split('; ')
+    parsed_list = []
+    for dict_str in dict_strings:
+        try:
+            parsed_dict = ast.literal_eval(dict_str)
+            if isinstance(parsed_dict, dict):
+                parsed_list.append(parsed_dict)
+        except (ValueError, SyntaxError):
+            continue
+            
+    return parsed_list
 
 def get_amino_acid_one_hot(residue_name):
     amino_acids = 'ACDEFGHIKLMNPQRSTVWY'
@@ -147,8 +167,12 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
     print("\n--- Step 4: Generating Features and Labels ---")
 
     if config.GLYCOSYLATION_MODE:
-        print(f"Loading glycosylation data from: {config.GLYCOSYLATION_DATA_PATH}")
-        glycosylation_df = pd.read_pickle(config.GLYCOSYLATION_DATA_PATH)
+        csv_path = config.GLYCOSYLATION_DATA_PATH
+        print(f"Loading glycosylation data from: {csv_path}")
+        glycosylation_df = pd.read_csv(csv_path)
+        glycosylation_df['pdb_id'] = glycosylation_df['pdb_id'].str.lower()
+        glycosylation_df['glycosylation_info'] = glycosylation_df['glycosylation_info'].apply(parse_custom_glycosylation_string)
+        
         glycosylation_df.set_index('pdb_id', inplace=True)
     else:
         glycosylation_df = None
@@ -265,6 +289,14 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
     print(f"\nFinal dataframe created with {len(final_df)} residue entries.")
     print("DataFrame head:")
     print(final_df.head())
+    # with pd.option_context('display.max_rows', None, 
+    #                    'display.max_columns', None, 
+    #                    'display.width', 1000,
+    #                    'display.max_colwidth', None):
+    #     print("--- Full DataFrame Preview ---")
+    #     print(final_df[['res_id', 'res_name', 'is_epitope', 'is_glycosylated', 'dist_to_glycosylation']])
+    # plot_glycosylation_for_one_chain(final_df, '1a14')
+    plot_glycosylation_for_multiple_chains(final_df, num_chains=None)
 
     final_df.to_pickle(config.FINAL_DATAFRAME_PATH)
     print(f"\nFinal DataFrame saved to: {config.FINAL_DATAFRAME_PATH}")
