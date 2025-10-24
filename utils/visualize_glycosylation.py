@@ -134,8 +134,12 @@ def plot_glycosylation_for_multiple_chains(df: pd.DataFrame, num_chains: int = N
     plt.grid(axis='y', linestyle='--', alpha=0.7)
 
     if not pd.isna(p_value):
+        if p_value == 0.0:
+            annotation_text = 'Mann-Whitney U p-value < 2.2e-308'
+        else:
+            annotation_text = f'Mann-Whitney U p-value = {p_value:.3g}'
         y_max = subset_df['dist_to_glycosylation'].max()
-        ax.text(0.5, y_max * 0.85, f'Mann-Whitney U p-value = {p_value:.3g}', 
+        ax.text(0.5, y_max * 0.85, annotation_text, 
                 horizontalalignment='center', size='large', color='black', weight='semibold')
     
     print(f"\nDisplaying aggregate plot. Close the plot window to continue.")

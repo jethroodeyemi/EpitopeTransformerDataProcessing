@@ -16,7 +16,7 @@ if __name__ == "__main__":
     #                    'display.max_colwidth', None):
     #     print("--- Full DataFrame Preview ---")
     #     print(final_df[['res_id', 'res_name', 'is_epitope', 'is_glycosylated', 'dist_to_glycosylation']])
-    plot_glycosylation_for_multiple_chains(final_df, num_chains=None, outlier_threshold=5.0)
+    plot_glycosylation_for_multiple_chains(final_df, num_chains=None, outlier_threshold=5)
     plot_glycosylation_for_one_chain(final_df, '1a14')
 
 
