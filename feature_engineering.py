@@ -168,6 +168,8 @@ def train_and_save_pca(all_embeddings, model_path, target_dim):
     stacked_embeddings = np.vstack(all_embeddings)
     pca = PCA(n_components=target_dim)
     pca.fit(stacked_embeddings)
+    explained_variance = np.sum(pca.explained_variance_ratio_)
+    print(f"--- PCA CHECK: The {target_dim} selected components explain {explained_variance:.2%} of the original variance. ---")
     with open(model_path, 'wb') as f:
         pickle.dump(pca, f)
     print(f"PCA model saved to {model_path}")
