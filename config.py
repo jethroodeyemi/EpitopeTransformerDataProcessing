@@ -1,7 +1,7 @@
 # config.py
 
 # --- File and Directory Paths ---
-INPUT_TSV = 'test.tsv'
+INPUT_TSV = 'dataset.tsv'
 OUTPUT_DIR = 'output'
 FINAL_MODEL_PATH = 'models/final_model.json'
 EVALUATION_OUTPUT_DIR = 'evaluation_results'

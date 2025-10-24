@@ -289,14 +289,6 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
     print(f"\nFinal dataframe created with {len(final_df)} residue entries.")
     print("DataFrame head:")
     print(final_df.head())
-    # with pd.option_context('display.max_rows', None, 
-    #                    'display.max_columns', None, 
-    #                    'display.width', 1000,
-    #                    'display.max_colwidth', None):
-    #     print("--- Full DataFrame Preview ---")
-    #     print(final_df[['res_id', 'res_name', 'is_epitope', 'is_glycosylated', 'dist_to_glycosylation']])
-    # plot_glycosylation_for_one_chain(final_df, '1a14')
-    plot_glycosylation_for_multiple_chains(final_df, num_chains=None)
 
     final_df.to_pickle(config.FINAL_DATAFRAME_PATH)
     print(f"\nFinal DataFrame saved to: {config.FINAL_DATAFRAME_PATH}")

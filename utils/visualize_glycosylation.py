@@ -46,7 +46,7 @@ def plot_glycosylation_for_one_chain(df: pd.DataFrame, pdb_id: str):
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     
     print(f"Displaying plot for {pdb_id.upper()}. Close the plot window to continue.")
-    plt.show(block=True)
+    plt.savefig(f'utils/glycosylation_distance_{pdb_id.lower()}.png', dpi=300)
 
 
 def plot_glycosylation_for_multiple_chains(df: pd.DataFrame, num_chains: int = None, outlier_threshold: float = 5.0):
@@ -97,9 +97,9 @@ def plot_glycosylation_for_multiple_chains(df: pd.DataFrame, num_chains: int = N
         ].sort_values(by='dist_to_glycosylation')
 
         if not outliers_df.empty:
-            print(f"Found {len(outliers_df)} epitope residues closer than {outlier_threshold} Å to a glycan:")
             with pd.option_context('display.max_rows', None, 'display.width', 120):
                 print(outliers_df[columns_to_inspect])
+            print(f"Found {len(outliers_df)} of {len(subset_df[subset_df['is_epitope'] == 1])} epitope residues closer than {outlier_threshold} Å to a glycan.")
         else:
             print(f"No epitope residues found closer than {outlier_threshold} Å to a glycan.")
     else:
@@ -139,7 +139,7 @@ def plot_glycosylation_for_multiple_chains(df: pd.DataFrame, num_chains: int = N
                 horizontalalignment='center', size='large', color='black', weight='semibold')
     
     print(f"\nDisplaying aggregate plot. Close the plot window to continue.")
-    plt.show(block=True)
+    plt.savefig('utils/glycosylation_distance_multiple_chains.png', dpi=300)
 
 
 if __name__ == '__main__':
