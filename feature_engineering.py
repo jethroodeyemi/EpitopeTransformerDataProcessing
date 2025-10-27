@@ -54,14 +54,22 @@ def get_amino_acid_one_hot(residue_name):
 def load_models():
     """Loads the specified ESM models based on the config."""
     models = {}
-    if config.EMBEDDING_MODE in ['esm2', 'both']:
+    if not config.EMBEDDING_MODE:
+        print("WARNING: EMBEDDING_MODE is empty. No embedding models will be loaded.")
+        return models
+    
+    if 'esm2' in config.EMBEDDING_MODE:
         print(f"Loading ESM-2 model: {config.ESM2_MODEL_NAME}")
         model, alphabet = esm.pretrained.load_model_and_alphabet(config.ESM2_MODEL_NAME)
         models['esm2'] = (model.to(DEVICE).eval(), alphabet)
-    if config.EMBEDDING_MODE in ['esm_if1', 'both']:
+    if 'esm_if1' in config.EMBEDDING_MODE:
         print(f"Loading ESM-IF1 model: {config.ESM_IF1_MODEL_NAME}")
         model, alphabet = esm.pretrained.load_model_and_alphabet(config.ESM_IF1_MODEL_NAME)
         models['esm_if1'] = (model.eval(), alphabet)
+    if 'esm1v' in config.EMBEDDING_MODE:
+        print(f"Loading ESM-1v model: {config.ESM1V_MODEL_NAME}")
+        model, alphabet = esm.pretrained.load_model_and_alphabet(config.ESM1V_MODEL_NAME)
+        models['esm1v'] = (model.to(DEVICE).eval(), alphabet)
     print(f"Using device: {DEVICE}")
     return models
 
@@ -195,7 +203,7 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
     # --- PCA Model Training/Loading Phase ---
     pca_models = {}
     # Handle ESM2 PCA
-    if config.REDUCE_ESM2_DIM and config.EMBEDDING_MODE in ['esm2', 'both']:
+    if config.REDUCE_ESM2_DIM and 'esm2' in config.EMBEDDING_MODE:
         pca_model_path = os.path.join(config.PCA_MODEL_CACHE_DIR, f"esm2_pca_{config.ESM2_DIM_TARGET}.pkl")
         if os.path.exists(pca_model_path):
             print(f"Loading existing ESM2 PCA model from {pca_model_path}")
@@ -232,8 +240,46 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
             else:
                 print("Warning: No ESM2 embeddings found to train PCA model.")
 
+    # Handle ESM-1v PCA
+    if config.REDUCE_ESM1V_DIM and 'esm1v' in config.EMBEDDING_MODE:
+        pca_model_path = os.path.join(config.PCA_MODEL_CACHE_DIR, f"esm1v_pca_{config.ESM1V_DIM_TARGET}.pkl")
+        if os.path.exists(pca_model_path):
+            print(f"Loading existing ESM-1v PCA model from {pca_model_path}")
+            with open(pca_model_path, 'rb') as f:
+                pca_models['esm1v'] = pickle.load(f)
+        else:
+            print("ESM-1v PCA model not found. Training a new one...")
+            all_esm1v_embeddings = []
+            for _, row in tqdm(df.iterrows(), total=len(df), desc="Gathering ESM-1v embeddings for PCA"):
+                pdb_id, antigen_chain_id = row['pdb'], row['antigen_chain']
+                antigen_only_path = os.path.join(antigen_only_pdb_dir, f"{pdb_id}_antigen_only.pdb")
+                if not os.path.exists(antigen_only_path): continue
+                try:                
+                    structure = parser.get_structure(f"{pdb_id}_antigen_only", antigen_only_path)
+                    residues = [res for res in structure[0][antigen_chain_id] if Polypeptide.is_aa(res, standard=True)]
+                    seq = "".join([seq1(res.get_resname()) for res in residues])
+                    if not seq: continue
+                    
+                    cache_path = os.path.join(config.EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm1v.npy")
+                    if os.path.exists(cache_path):
+                        embeddings = np.load(cache_path)
+                    else:
+                        embeddings = esm_emb.get_esm1v_embedding(models['esm1v'], seq)
+                        if embeddings is not None: np.save(cache_path, embeddings)
+                    
+                    if embeddings is not None:
+                        all_esm1v_embeddings.append(embeddings)
+                except Exception as e:
+                    print(f"\nERROR: Failed to process PDB {pdb_id} during PCA pre-computation. Error: {e}. Skipping this file.")
+                    continue
+            
+            if all_esm1v_embeddings:
+                pca_models['esm1v'] = train_and_save_pca(all_esm1v_embeddings, pca_model_path, config.ESM1V_DIM_TARGET)
+            else:
+                print("Warning: No ESM-1v embeddings found to train PCA model.")
+
     # Handle ESM-IF1 PCA
-    if config.REDUCE_ESM_IF1_DIM and config.EMBEDDING_MODE in ['esm_if1', 'both']:
+    if config.REDUCE_ESM_IF1_DIM and 'esm_if1' in config.EMBEDDING_MODE:
         pca_model_path = os.path.join(config.PCA_MODEL_CACHE_DIR, f"esm_if1_pca_{config.ESM_IF1_DIM_TARGET}.pkl")
         if os.path.exists(pca_model_path):
             print(f"Loading existing ESM-IF1 PCA model from {pca_model_path}")
@@ -297,10 +343,11 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
 
             esm2_embeddings = None
             esm_if1_embeddings = None
+            esm1v_embeddings = None
             embedding = np.zeros(1, dtype=np.float32)
             
             # ESM-2
-            if config.EMBEDDING_MODE in ['esm2', 'both']:
+            if 'esm2' in config.EMBEDDING_MODE:
                 cache_path = os.path.join(config.EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm2.npy")
                 if os.path.exists(cache_path) and not config.FORCE_RECOMPUTE_EMBEDDINGS:
                     esm2_embeddings = np.load(cache_path)
@@ -318,9 +365,29 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
                         transformed_embeddings = pca_models['esm2'].transform(esm2_embeddings)
                         np.save(pca_cache_path, transformed_embeddings)
                         esm2_embeddings = transformed_embeddings
+
+            # ESM-1v
+            if 'esm1v' in config.EMBEDDING_MODE:
+                cache_path = os.path.join(config.EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm1v.npy")
+                if os.path.exists(cache_path) and not config.FORCE_RECOMPUTE_EMBEDDINGS:
+                    esm1v_embeddings = np.load(cache_path)
+                else:
+                    esm1v_embeddings = esm_emb.get_esm1v_embedding(models['esm1v'], seq)
+                    if esm1v_embeddings is not None:
+                        np.save(cache_path, esm1v_embeddings)
+                
+                # Apply PCA if enabled and model is available
+                if 'esm1v' in pca_models and esm1v_embeddings is not None:
+                    pca_cache_path = os.path.join(config.PCA_EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm1v_pca_{config.ESM1V_DIM_TARGET}.npy")
+                    if os.path.exists(pca_cache_path) and not config.FORCE_RECOMPUTE_EMBEDDINGS:
+                        esm1v_embeddings = np.load(pca_cache_path)
+                    else:
+                        transformed_embeddings = pca_models['esm1v'].transform(esm1v_embeddings)
+                        np.save(pca_cache_path, transformed_embeddings)
+                        esm1v_embeddings = transformed_embeddings
                         
             # ESM-IF1
-            if config.EMBEDDING_MODE in ['esm_if1', 'both']:
+            if 'esm_if1' in config.EMBEDDING_MODE:
                 cache_path = os.path.join(config.EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm_if1.npy")
                 if os.path.exists(cache_path) and not config.FORCE_RECOMPUTE_EMBEDDINGS:
                     esm_if1_embeddings = np.load(cache_path)
@@ -344,15 +411,22 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
                 res_id_tuple = res.get_id()
                 res_id_str = f"{res_id_tuple[1]}{res_id_tuple[2]}".strip()
                 
-                if config.EMBEDDING_MODE == 'esm2':
+                # Build embedding by concatenating available embeddings
+                embedding_parts = []
+                if 'esm2' in config.EMBEDDING_MODE:
                     if esm2_embeddings is None or i >= len(esm2_embeddings): continue
-                    embedding = esm2_embeddings[i]
-                elif config.EMBEDDING_MODE == 'esm_if1':
+                    embedding_parts.append(esm2_embeddings[i])
+                if 'esm1v' in config.EMBEDDING_MODE:
+                    if esm1v_embeddings is None or i >= len(esm1v_embeddings): continue
+                    embedding_parts.append(esm1v_embeddings[i])
+                if 'esm_if1' in config.EMBEDDING_MODE:
                     if esm_if1_embeddings is None or i >= len(esm_if1_embeddings): continue
-                    embedding = esm_if1_embeddings[i]
-                elif config.EMBEDDING_MODE == 'both':
-                    if esm2_embeddings is None or esm_if1_embeddings is None or i >= len(esm2_embeddings) or i >= len(esm_if1_embeddings): continue
-                    embedding = np.concatenate([esm2_embeddings[i], esm_if1_embeddings[i]])
+                    embedding_parts.append(esm_if1_embeddings[i])
+                
+                if not embedding_parts:
+                    embedding = np.array([0.0], dtype=np.float32)
+                else:
+                    embedding = np.concatenate(embedding_parts) if len(embedding_parts) > 1 else embedding_parts[0]
                 
                 bio_feats = biophysical_feats.get(res_id_str, {"rsa": 0, "b_factor": 0})
                 

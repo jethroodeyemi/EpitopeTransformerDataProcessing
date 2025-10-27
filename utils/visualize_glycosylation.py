@@ -49,7 +49,7 @@ def plot_glycosylation_for_one_chain(df: pd.DataFrame, pdb_id: str):
     plt.savefig(f'utils/glycosylation_distance_{pdb_id.lower()}.png', dpi=300)
 
 
-def plot_glycosylation_for_multiple_chains(df: pd.DataFrame, num_chains: int = None, outlier_threshold: float = 5.0):
+def plot_glycosylation_for_multiple_chains(df: pd.DataFrame, num_chains: int = None, outlier_threshold: float = 5.0, output_file: str = "utils/outlier_pdb_ids_to_exclude.txt"):
     """
     Generates a violin plot and investigates outliers for multiple protein chains.
 
@@ -91,15 +91,26 @@ def plot_glycosylation_for_multiple_chains(df: pd.DataFrame, num_chains: int = N
     
     # Check if all required columns exist before filtering
     if all(col in subset_df.columns for col in columns_to_inspect):
-        outliers_df = subset_df[
-            (subset_df['is_epitope'] == 1) & 
-            (subset_df['dist_to_glycosylation'] < outlier_threshold)
-        ].sort_values(by='dist_to_glycosylation')
+        outliers_df = df[
+            (df['is_epitope'] == 1) & 
+            (df['dist_to_glycosylation'] < outlier_threshold)
+        ]
+        total_epitopes = len(df[df['is_epitope'] == 1])
 
         if not outliers_df.empty:
-            with pd.option_context('display.max_rows', None, 'display.width', 120):
-                print(outliers_df[columns_to_inspect])
-            print(f"Found {len(outliers_df)} of {len(subset_df[subset_df['is_epitope'] == 1])} epitope residues closer than {outlier_threshold} Å to a glycan.")
+            outlier_pdb_ids = outliers_df['pdb_id'].unique()
+        
+            print(f"Found {len(outliers_df)} of {total_epitopes} epitope residues closer than {outlier_threshold} Å to a glycan.")
+            print(f"These outliers are found in {len(outlier_pdb_ids)} unique protein chains.")
+            
+            # --- NEW: Save the unique PDB IDs to a text file ---
+            try:
+                with open(output_file, 'w') as f:
+                    for pdb_id in sorted(list(outlier_pdb_ids)):
+                        f.write(f"{pdb_id}\n")
+                print(f"Successfully saved the list of {len(outlier_pdb_ids)} outlier PDB IDs to '{output_file}'")
+            except IOError as e:
+                print(f"Error: Could not write to file '{output_file}'. Reason: {e}")
         else:
             print(f"No epitope residues found closer than {outlier_threshold} Å to a glycan.")
     else:

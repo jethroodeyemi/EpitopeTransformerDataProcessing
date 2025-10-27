@@ -45,6 +45,46 @@ def get_esm2_embedding(model_tuple, sequence: str) -> np.ndarray:
     
     # Remove start/end tokens and batch dimension
     return torch.tensor(embedding[0, 1 : len(sequence) + 1]).float()
+
+
+def get_esm1v_embedding(model_tuple, sequence: str) -> np.ndarray:
+    """
+    Generates ESM-1v embedding for a single sequence.
+
+    Args:
+        model_tuple: A tuple containing the loaded (model, alphabet).
+        sequence: The amino acid sequence string.
+
+    Returns:
+        A numpy array of per-residue embeddings.
+    """
+    model, alphabet = model_tuple
+    batch_converter = alphabet.get_batch_converter()
+    
+    # ESM-1v has a 1024 token limit; truncate if necessary.
+    max_len = 1022 # 1024 minus start/end tokens
+    if len(sequence) > max_len:
+        print(f"Sequence truncated to {max_len} residues for ESM-1v embedding.")
+        sequence = sequence[:max_len]
+
+    data = [("protein", sequence)]
+    _, _, batch_tokens = batch_converter(data)
+    batch_tokens = batch_tokens.to(DEVICE)
+
+    # The layer number is specific to the model, e.g., 33 for esm1v_t33_650M_UR90S_1
+    try:
+        layer = int(config.ESM1V_MODEL_NAME.split('_')[1][1:])
+    except (IndexError, ValueError):
+        print(f"Could not parse layer from model name '{config.ESM1V_MODEL_NAME}'. Defaulting to 33.")
+        layer = 33
+        
+    with torch.no_grad():
+        results = model(batch_tokens, repr_layers=[layer], return_contacts=False)
+        
+    embedding = results["representations"][layer].to("cpu").numpy()
+    
+    # Remove start/end tokens and batch dimension
+    return torch.tensor(embedding[0, 1 : len(sequence) + 1]).float()
         
 
 def get_esm_if1_embedding(model_tuple, pdb_path, chain_id) -> np.ndarray:

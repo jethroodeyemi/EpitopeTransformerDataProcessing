@@ -38,6 +38,23 @@ def filter_and_deduplicate_tsv(input_path, output_path):
     
     df_deduped.to_csv(output_path, sep='\t', index=False)
     print(f"Deduplicated and filtered TSV saved to: {output_path}")
+
+     # --- EXCLUDE OUTLIER PDBs (These PDBs have epitopes on or too close to glycans) ---
+    outlier_file = "utils/outlier_pdb_ids_to_exclude.txt"
+    if os.path.exists(outlier_file):
+        print(f"\n--- Excluding outlier PDBs listed in '{outlier_file}' ---")
+        with open(outlier_file, 'r') as f:
+            outlier_ids_to_exclude = {line.strip().lower() for line in f}
+        
+        initial_count = len(deduped_df)
+        # Filter the DataFrame, making sure to compare lowercase IDs
+        deduped_df = deduped_df[~deduped_df['pdb'].str.lower().isin(outlier_ids_to_exclude)]
+        
+        print(f"Removed {initial_count - len(deduped_df)} outlier chains from consideration.")
+        print(f"Remaining chains for processing: {len(deduped_df)}")
+    else:
+        print(f"\nWarning: Outlier exclusion file '{outlier_file}' not found. Proceeding with all data.")
+        
     return df_deduped
 
 def download_pdbs(df, pdb_dir):
