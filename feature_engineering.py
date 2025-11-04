@@ -205,12 +205,12 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
     # Handle ESM2 PCA
     if config.REDUCE_ESM2_DIM and 'esm2' in config.EMBEDDING_MODE:
         pca_model_path = os.path.join(config.PCA_MODEL_CACHE_DIR, f"esm2_pca_{config.ESM2_DIM_TARGET}.pkl")
-        if os.path.exists(pca_model_path):
+        if os.path.exists(pca_model_path) and not config.FORCE_RECOMPUTE_EMBEDDINGS:
             print(f"Loading existing ESM2 PCA model from {pca_model_path}")
             with open(pca_model_path, 'rb') as f:
                 pca_models['esm2'] = pickle.load(f)
         else:
-            print("ESM2 PCA model not found. Training a new one...")
+            print("ESM2 PCA model not found or recompute forced. Training a new one...")
             all_esm2_embeddings = []
             for _, row in tqdm(df.iterrows(), total=len(df), desc="Gathering ESM2 embeddings for PCA"):
                 pdb_id, antigen_chain_id = row['pdb'], row['antigen_chain']
@@ -223,11 +223,12 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
                     if not seq: continue
                     
                     cache_path = os.path.join(config.EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm2.npy")
-                    if os.path.exists(cache_path):
+                    if os.path.exists(cache_path) and not config.FORCE_RECOMPUTE_EMBEDDINGS:
                         embeddings = np.load(cache_path)
                     else:
                         embeddings = esm_emb.get_esm2_embedding(models['esm2'], seq)
-                        if embeddings is not None: np.save(cache_path, embeddings)
+                        if embeddings is not None: 
+                            np.save(cache_path, embeddings)
                     
                     if embeddings is not None:
                         all_esm2_embeddings.append(embeddings)
@@ -243,12 +244,12 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
     # Handle ESM-1v PCA
     if config.REDUCE_ESM1V_DIM and 'esm1v' in config.EMBEDDING_MODE:
         pca_model_path = os.path.join(config.PCA_MODEL_CACHE_DIR, f"esm1v_pca_{config.ESM1V_DIM_TARGET}.pkl")
-        if os.path.exists(pca_model_path):
+        if os.path.exists(pca_model_path) and not config.FORCE_RECOMPUTE_EMBEDDINGS:
             print(f"Loading existing ESM-1v PCA model from {pca_model_path}")
             with open(pca_model_path, 'rb') as f:
                 pca_models['esm1v'] = pickle.load(f)
         else:
-            print("ESM-1v PCA model not found. Training a new one...")
+            print("ESM-1v PCA model not found or recompute forced. Training a new one...")
             all_esm1v_embeddings = []
             for _, row in tqdm(df.iterrows(), total=len(df), desc="Gathering ESM-1v embeddings for PCA"):
                 pdb_id, antigen_chain_id = row['pdb'], row['antigen_chain']
@@ -261,11 +262,12 @@ def generate_features_and_labels(df, cleaned_pdb_dir, antigen_only_pdb_dir):
                     if not seq: continue
                     
                     cache_path = os.path.join(config.EMBEDDING_CACHE_DIR, f"{pdb_id}_{antigen_chain_id}_esm1v.npy")
-                    if os.path.exists(cache_path):
+                    if os.path.exists(cache_path) and not config.FORCE_RECOMPUTE_EMBEDDINGS:
                         embeddings = np.load(cache_path)
                     else:
                         embeddings = esm_emb.get_esm1v_embedding(models['esm1v'], seq)
-                        if embeddings is not None: np.save(cache_path, embeddings)
+                        if embeddings is not None: 
+                            np.save(cache_path, embeddings)
                     
                     if embeddings is not None:
                         all_esm1v_embeddings.append(embeddings)
