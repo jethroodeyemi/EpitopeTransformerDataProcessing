@@ -25,6 +25,14 @@ from tqdm import tqdm
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
+# =============================================================================
+# CONFIGURATION: Define dimensions to analyze for each model
+# =============================================================================
+DIMENSIONS_TO_ANALYZE = {
+    'esm2': [64, 128, 256],      # List of dimensions to analyze for ESM2
+    'esm1v': [64, 128, 256],     # List of dimensions to analyze for ESM1v
+}
+
 # Set style for better-looking plots
 sns.set_style("whitegrid")
 plt.rcParams['figure.figsize'] = (12, 8)
@@ -35,51 +43,26 @@ def load_pca_model(model_name, target_dim):
     """Load a PCA model from the cache directory."""
     model_path = os.path.join(config.PCA_MODEL_CACHE_DIR, f"{model_name}_pca_{target_dim}.pkl")
     if not os.path.exists(model_path):
-        print(f"❌ PCA model not found: {model_path}")
         return None
     
     with open(model_path, 'rb') as f:
         pca_model = pickle.load(f)
     
-    print(f"✅ Loaded PCA model: {model_path}")
     return pca_model
 
 
 def analyze_variance_explained(pca_model, model_name, target_dim):
     """Analyze and visualize variance explained by principal components."""
-    print(f"\n{'='*80}")
-    print(f"VARIANCE ANALYSIS: {model_name.upper()}")
-    print(f"{'='*80}")
-    
     n_components = pca_model.n_components_
     variance_ratio = pca_model.explained_variance_ratio_
     cumulative_variance = np.cumsum(variance_ratio)
     
-    # Print summary statistics
-    print(f"\n📊 Summary Statistics:")
-    print(f"   Total components retained: {n_components}")
-    print(f"   Original dimensionality: {pca_model.n_features_in_}")
-    print(f"   Compression ratio: {n_components / pca_model.n_features_in_:.2%}")
-    print(f"   Total variance explained: {cumulative_variance[-1]:.4f} ({cumulative_variance[-1]*100:.2f}%)")
-    print(f"   Variance lost: {1 - cumulative_variance[-1]:.4f} ({(1-cumulative_variance[-1])*100:.2f}%)")
-    
-    # Top components analysis
-    print(f"\n🔝 Top 10 Principal Components:")
-    print(f"   {'Component':<12} {'Variance':<15} {'Cumulative':<15}")
-    print(f"   {'-'*42}")
-    for i in range(min(10, n_components)):
-        print(f"   PC-{i+1:<10} {variance_ratio[i]:>8.4f} ({variance_ratio[i]*100:>5.2f}%)  "
-              f"{cumulative_variance[i]:>8.4f} ({cumulative_variance[i]*100:>5.2f}%)")
-    
-    # Milestones
-    print(f"\n🎯 Variance Milestones:")
-    milestones = [0.5, 0.7, 0.8, 0.9, 0.95, 0.99]
-    for threshold in milestones:
-        n_comp_needed = np.argmax(cumulative_variance >= threshold) + 1
-        if cumulative_variance[-1] >= threshold:
-            print(f"   {threshold*100:>3.0f}% variance: {n_comp_needed} components")
-        else:
-            print(f"   {threshold*100:>3.0f}% variance: Not achievable (max: {cumulative_variance[-1]*100:.2f}%)")
+    # Print only essential statistics
+    print(f"\n{model_name.upper()} @ {target_dim} dims:")
+    print(f"  Variance Retained: {cumulative_variance[-1]:.4f} ({cumulative_variance[-1]*100:.2f}%)")
+    print(f"  Variance Lost:     {1 - cumulative_variance[-1]:.4f} ({(1-cumulative_variance[-1])*100:.2f}%)")
+    print(f"  Compression Ratio: {n_components}/{pca_model.n_features_in_} ({n_components / pca_model.n_features_in_:.1%})")
+    print(f"  Top PC Explains:   {variance_ratio[0]*100:.2f}%")
     
     return variance_ratio, cumulative_variance
 
@@ -147,21 +130,14 @@ def plot_variance_explained(variance_ratio, cumulative_variance, model_name, out
     plt.close()
 
 
-def analyze_reconstruction_error(pca_model, model_name, embedding_dir, output_dir):
+def analyze_reconstruction_error(pca_model, model_name, target_dim, embedding_dir, output_dir):
     """Analyze reconstruction error on actual embeddings."""
-    print(f"\n{'='*80}")
-    print(f"RECONSTRUCTION ERROR ANALYSIS: {model_name.upper()}")
-    print(f"{'='*80}")
-    
     # Find all embeddings for this model
     cache_pattern = f"*_{model_name}.npy"
     embedding_files = list(Path(embedding_dir).glob(cache_pattern))
     
     if not embedding_files:
-        print(f"⚠️  No embedding files found matching pattern: {cache_pattern}")
         return None
-    
-    print(f"\n📁 Found {len(embedding_files)} embedding files")
     
     # Sample embeddings for analysis (to avoid memory issues)
     max_samples = min(50, len(embedding_files))
@@ -169,11 +145,8 @@ def analyze_reconstruction_error(pca_model, model_name, embedding_dir, output_di
     
     reconstruction_errors = []
     relative_errors = []
-    per_sample_errors = []
     
-    print(f"📊 Computing reconstruction errors on {max_samples} samples...")
-    
-    for emb_file in tqdm(sample_files, desc="Processing"):
+    for emb_file in tqdm(sample_files, desc=f"  Computing errors ({model_name}@{target_dim})", leave=False):
         try:
             original_emb = np.load(emb_file)
             
@@ -182,9 +155,7 @@ def analyze_reconstruction_error(pca_model, model_name, embedding_dir, output_di
             reconstructed = pca_model.inverse_transform(transformed)
             
             # Compute errors
-            abs_error = np.abs(original_emb - reconstructed)
             mse = np.mean((original_emb - reconstructed) ** 2)
-            mae = np.mean(abs_error)
             
             # Relative error (avoid division by zero)
             original_norm = np.linalg.norm(original_emb, axis=1, keepdims=True)
@@ -193,43 +164,24 @@ def analyze_reconstruction_error(pca_model, model_name, embedding_dir, output_di
             
             reconstruction_errors.append(mse)
             relative_errors.extend(rel_error.flatten())
-            per_sample_errors.append({
-                'file': emb_file.name,
-                'mse': mse,
-                'mae': mae,
-                'max_error': np.max(abs_error),
-                'mean_rel_error': np.mean(rel_error)
-            })
             
         except Exception as e:
-            print(f"⚠️  Error processing {emb_file.name}: {e}")
             continue
     
     if not reconstruction_errors:
-        print("❌ No successful reconstructions")
         return None
     
-    # Print statistics
+    # Calculate statistics
     reconstruction_errors = np.array(reconstruction_errors)
     relative_errors = np.array(relative_errors)
     
-    print(f"\n📈 Reconstruction Error Statistics:")
-    print(f"   Mean Squared Error (MSE):")
-    print(f"      Mean:   {np.mean(reconstruction_errors):.6f}")
-    print(f"      Median: {np.median(reconstruction_errors):.6f}")
-    print(f"      Std:    {np.std(reconstruction_errors):.6f}")
-    print(f"      Min:    {np.min(reconstruction_errors):.6f}")
-    print(f"      Max:    {np.max(reconstruction_errors):.6f}")
-    
-    print(f"\n   Relative Error:")
-    print(f"      Mean:   {np.mean(relative_errors):.4f} ({np.mean(relative_errors)*100:.2f}%)")
-    print(f"      Median: {np.median(relative_errors):.4f} ({np.median(relative_errors)*100:.2f}%)")
-    print(f"      95th percentile: {np.percentile(relative_errors, 95):.4f} ({np.percentile(relative_errors, 95)*100:.2f}%)")
-    
-    # Plot reconstruction errors
-    plot_reconstruction_errors(reconstruction_errors, relative_errors, per_sample_errors, model_name, output_dir)
-    
-    return per_sample_errors
+    return {
+        'mse_mean': np.mean(reconstruction_errors),
+        'mse_median': np.median(reconstruction_errors),
+        'rel_error_mean': np.mean(relative_errors),
+        'rel_error_median': np.median(relative_errors),
+        'rel_error_95th': np.percentile(relative_errors, 95)
+    }
 
 
 def plot_reconstruction_errors(mse_errors, rel_errors, per_sample_errors, model_name, output_dir):
@@ -508,85 +460,134 @@ def main():
     print("="*80)
     print("PCA DIMENSIONALITY REDUCTION ANALYSIS")
     print("="*80)
-    print(f"\nAnalyzing PCA models from: {config.PCA_MODEL_CACHE_DIR}")
-    print(f"Using embeddings from: {config.EMBEDDING_CACHE_DIR}")
     
     # Create output directory for plots
     output_dir = os.path.join(config.OUTPUT_DIR, 'pca_analysis')
     os.makedirs(output_dir, exist_ok=True)
-    print(f"Output directory: {output_dir}")
     
-    # Models to analyze
+    # Determine which models to analyze based on config and DIMENSIONS_TO_ANALYZE
     models_to_analyze = []
     
-    if config.REDUCE_ESM2_DIM and 'esm2' in config.EMBEDDING_MODE:
-        models_to_analyze.append(('esm2', config.ESM2_DIM_TARGET))
+    if 'esm2' in config.EMBEDDING_MODE and config.REDUCE_ESM2_DIM:
+        for dim in DIMENSIONS_TO_ANALYZE.get('esm2', []):
+            models_to_analyze.append(('esm2', dim))
     
-    if config.REDUCE_ESM1V_DIM and 'esm1v' in config.EMBEDDING_MODE:
-        models_to_analyze.append(('esm1v', config.ESM1V_DIM_TARGET))
+    if 'esm1v' in config.EMBEDDING_MODE and config.REDUCE_ESM1V_DIM:
+        for dim in DIMENSIONS_TO_ANALYZE.get('esm1v', []):
+            models_to_analyze.append(('esm1v', dim))
     
-    if config.REDUCE_ESM_IF1_DIM and 'esm_if1' in config.EMBEDDING_MODE:
-        models_to_analyze.append(('esm_if1', config.ESM_IF1_DIM_TARGET))
+    if 'esm_if1' in config.EMBEDDING_MODE and config.REDUCE_ESM_IF1_DIM:
+        for dim in DIMENSIONS_TO_ANALYZE.get('esm_if1', []):
+            models_to_analyze.append(('esm_if1', dim))
     
     if not models_to_analyze:
         print("\n⚠️  No PCA models configured for analysis.")
-        print("Check your config.py settings for REDUCE_*_DIM flags.")
+        print("Check DIMENSIONS_TO_ANALYZE in this script and REDUCE_*_DIM flags in config.py")
         return
     
-    print(f"\n🔍 Models to analyze: {[m[0] for m in models_to_analyze]}")
+    print(f"\n🔍 Models to analyze:")
+    for model_name, dim in models_to_analyze:
+        print(f"   - {model_name.upper()} @ {dim} dimensions")
     
-    # Analyze each model
+    # Analyze each model configuration
     all_analyses = {}
     
     for model_name, target_dim in models_to_analyze:
-        print(f"\n{'#'*80}")
-        print(f"# Analyzing {model_name.upper()} (Target dim: {target_dim})")
-        print(f"{'#'*80}")
+        model_key = f"{model_name}_{target_dim}"
         
         # Load PCA model
         pca_model = load_pca_model(model_name, target_dim)
         
         if pca_model is None:
-            all_analyses[model_name] = {'pca_model': None}
+            print(f"  ⚠️  PCA model not found for {model_name} @ {target_dim} dims")
+            all_analyses[model_key] = {'pca_model': None}
             continue
         
-        # Variance analysis
+        # Variance analysis (prints essential info)
         variance_ratio, cumulative_variance = analyze_variance_explained(
             pca_model, model_name, target_dim
         )
         
-        # Plot variance
-        plot_variance_explained(variance_ratio, cumulative_variance, model_name, output_dir)
-        
-        # Reconstruction error analysis
-        reconstruction_errors = analyze_reconstruction_error(
-            pca_model, model_name, config.EMBEDDING_CACHE_DIR, output_dir
+        # Reconstruction error analysis (silent computation)
+        error_stats = analyze_reconstruction_error(
+            pca_model, model_name, target_dim, config.EMBEDDING_CACHE_DIR, output_dir
         )
         
-        # Component importance
-        components = analyze_component_importance(pca_model, model_name, output_dir)
+        if error_stats:
+            print(f"  Reconstruction Error: {error_stats['rel_error_mean']*100:.2f}% (mean), "
+                  f"{error_stats['rel_error_median']*100:.2f}% (median)")
         
         # Store results
-        all_analyses[model_name] = {
+        all_analyses[model_key] = {
+            'model_name': model_name,
+            'target_dim': target_dim,
             'pca_model': pca_model,
             'variance_ratio': variance_ratio,
             'cumulative_variance': cumulative_variance,
-            'reconstruction_errors': reconstruction_errors,
-            'components': components
+            'error_stats': error_stats
         }
+        
+        # Create individual plots
+        plot_variance_explained(variance_ratio, cumulative_variance, 
+                               f"{model_name}_{target_dim}", output_dir)
     
-    # Create summary comparison
-    if len(all_analyses) > 0:
-        create_summary_report(all_analyses, output_dir)
+    # Create comparison summary
+    print(f"\n{'='*80}")
+    print("SUMMARY COMPARISON")
+    print(f"{'='*80}\n")
+    
+    create_comparison_summary(all_analyses, output_dir)
     
     print(f"\n{'='*80}")
     print("✅ ANALYSIS COMPLETE")
     print(f"{'='*80}")
-    print(f"All results saved to: {output_dir}")
-    print("\n📊 Generated files:")
-    for file in sorted(os.listdir(output_dir)):
-        print(f"   - {file}")
+    print(f"Results saved to: {output_dir}\n")
+
+
+def create_comparison_summary(all_analyses, output_dir):
+    """Create a summary table comparing all analyzed configurations."""
+    summary_data = []
+    
+    for config_name, analysis in all_analyses.items():
+        if analysis['pca_model'] is None:
+            continue
+        
+        pca = analysis['pca_model']
+        model_name = analysis['model_name']
+        target_dim = analysis['target_dim']
+        cum_var = analysis['cumulative_variance']
+        error_stats = analysis.get('error_stats')
+        
+        row = {
+            'Model': model_name.upper(),
+            'Dimensions': target_dim,
+            'Original Dims': pca.n_features_in_,
+            'Compression': f"{target_dim / pca.n_features_in_:.1%}",
+            'Variance Retained': f"{cum_var[-1]:.4f}",
+            'Variance Lost': f"{1 - cum_var[-1]:.4f}",
+        }
+        
+        if error_stats:
+            row['Rel. Error (mean)'] = f"{error_stats['rel_error_mean']:.4f}"
+            row['Rel. Error (median)'] = f"{error_stats['rel_error_median']:.4f}"
+        
+        summary_data.append(row)
+    
+    if not summary_data:
+        print("No valid analyses to compare.")
+        return
+    
+    df_summary = pd.DataFrame(summary_data)
+    
+    # Print the table
+    print(df_summary.to_string(index=False))
+    
+    # Save to CSV
+    csv_path = os.path.join(output_dir, 'pca_comparison_summary.csv')
+    df_summary.to_csv(csv_path, index=False)
+    print(f"\n💾 Saved summary table: {csv_path}")
 
 
 if __name__ == "__main__":
     main()
+
