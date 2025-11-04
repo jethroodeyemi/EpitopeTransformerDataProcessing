@@ -495,19 +495,19 @@ def structure_data_to_dict(df):
         embed_dim = embeddings.shape[1]
         
         feature_idxs = {
-            "embedding": range(0, embed_dim),
-            "sequence_onehot": range(embed_dim, embed_dim + 20),
-            "b_factor": range(embed_dim + 20, embed_dim + 21),
-            "length": range(embed_dim + 21, embed_dim + 22),
-            "rsa": range(embed_dim + 22, embed_dim + 23),
+            "embedding": range(0, embed_dim), # 512 + 64 + 64
+            "sequence_onehot": range(embed_dim, embed_dim + 20), # 20
+            "b_factor": range(embed_dim + 20, embed_dim + 21), # 1
+            "length": range(embed_dim + 21, embed_dim + 22), # 1
+            "rsa": range(embed_dim + 22, embed_dim + 23), # 1
         }
         
         current_idx = embed_dim + 23
         if 'binary' in config.GLYCOSYLATION_MODE:
-            feature_idxs["is_glycosylated"] = range(current_idx, current_idx + 1)
+            feature_idxs["is_glycosylated"] = range(current_idx, current_idx + 1) # 1
             current_idx += 1
         if 'distance' in config.GLYCOSYLATION_MODE:
-            feature_idxs["dist_to_glycosylation"] = range(current_idx, current_idx + 1)
+            feature_idxs["dist_to_glycosylation"] = range(current_idx, current_idx + 1) # 1
             current_idx += 1
 
 
