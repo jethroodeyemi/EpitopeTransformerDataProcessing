@@ -29,8 +29,8 @@ import config
 # CONFIGURATION: Define dimensions to analyze for each model
 # =============================================================================
 DIMENSIONS_TO_ANALYZE = {
-    'esm2': [64, 128, 224],      # List of dimensions to analyze for ESM2
-    'esm1v': [64, 128, 224],     # List of dimensions to analyze for ESM1v
+    'esm2': [64, 128, 224, 256],      # List of dimensions to analyze for ESM2
+    'esm1v': [64, 128, 224, 256],     # List of dimensions to analyze for ESM1v
 }
 
 # Set style for better-looking plots
