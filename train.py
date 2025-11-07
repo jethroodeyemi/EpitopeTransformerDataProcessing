@@ -22,10 +22,10 @@ def train_cv(X_train_val, y_train_val, groups_train_val):
     print("--- Starting model training with GroupKFold cross-validation ---")
     
     params = {
-        'objective': 'binary:logistic', 'eval_metric': 'logloss', 'n_estimators': 1500,
+        'objective': 'binary:logistic', 'eval_metric': 'logloss', 'n_estimators': 10000,
         'learning_rate': 0.05, 'max_depth': 5, 'subsample': 0.8,
         'colsample_bytree': 0.8, 'gamma': 0.1, 'tree_method': 'hist',
-        'random_state': 42
+        'random_state': 42, 'device': 'cuda'
     }
 
     n_splits = 5
@@ -138,8 +138,11 @@ def main():
     y_train_val, y_test = y[train_val_mask], y[test_mask]
     groups_train_val = groups[train_val_mask]
 
-    print(f"Train/Val set size: {len(X_train_val)} residues from {len(train_val_groups)} proteins")
-    print(f"Test set size: {len(X_test)} residues from {len(test_groups)} proteins")
+    actual_train_val_protein_count = len(np.unique(groups_train_val))
+    actual_test_protein_count = len(np.unique(groups[test_mask]))
+
+    print(f"Train/Val set size: {len(X_train_val)} residues from {actual_train_val_protein_count} proteins")
+    print(f"Test set size: {len(X_test)} residues from {actual_test_protein_count} proteins")
 
     # --- 3. Cross-Validation on Train/Val set ---
     cv_models, best_model_idx = train_cv(X_train_val, y_train_val, groups_train_val)
