@@ -150,8 +150,8 @@ def main():
     
     # Save the best model from cross-validation
     os.makedirs('models', exist_ok=True)
-    best_cv_model.save_model('models/best_cv_model.json')
-    print("\nBest model from CV saved to 'models/best_cv_model.json'")
+    best_cv_model.save_model('models/xgboost/split_on_spike/best_cv_model.json')
+    print("\nBest model from CV saved to 'models/xgboost/split_on_spike/best_cv_model.json'")
 
     # --- 4. Train Final Model on All Train/Val Data ---
     # Get parameters from the best CV model
@@ -163,8 +163,8 @@ def main():
     final_model = train_final_model(X_train_val, y_train_val, best_params, best_iteration)
 
     # Save the final model
-    final_model.save_model('models/final_model.json')
-    print("Final model trained on all data saved to 'models/final_model.json'")
+    final_model.save_model('models/xgboost/split_on_spike/final_model.json')
+    print("Final model trained on all data saved to 'models/xgboost/split_on_spike/final_model.json'")
     
     # --- 5. Final Evaluation on the Hold-Out Test Set ---
     print("\n--- Final Evaluation on the Hold-Out Test Set ---")
