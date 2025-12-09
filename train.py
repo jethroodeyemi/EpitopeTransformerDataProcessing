@@ -150,8 +150,8 @@ def main():
     
     # Save the best model from cross-validation
     os.makedirs('models', exist_ok=True)
-    best_cv_model.save_model(config.FINAL_MODEL_PATH)
-    print(f"\nBest model from CV saved to '{config.FINAL_MODEL_PATH}'")
+    best_cv_model.save_model(config.BEST_MODEL_PATH)
+    print(f"\nBest model from CV saved to '{config.BEST_MODEL_PATH}'")
 
     # --- 4. Train Final Model on All Train/Val Data ---
     # Get parameters from the best CV model
