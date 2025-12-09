@@ -12,3 +12,5 @@ dist/
 glycosylation/
 pca_embedding_cache/
 pca_models/
+tmalign/
+tmalign_results/
