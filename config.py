@@ -20,7 +20,7 @@ STRUCTURED_DATA_PATH = f'{OUTPUT_DIR}/structured_protein_data.pkl'
 
 FASTA_PATH = f'{OUTPUT_DIR}/all_antigen_sequences.fasta'
 CLUSTER_FILE_PATH = f'{OUTPUT_DIR}/protein_clusters' # CD-HIT adds .clstr
-SPLITS_FILE_PATH = f'{OUTPUT_DIR}/data_splits_STRICT_no_viruses.json'
+SPLITS_FILE_PATH = f'{OUTPUT_DIR}/split_clean.json'
 CDHIT_THRESHOLD = 0.4
 MAX_CLUSTER_SIZE = 50
 
