@@ -30,8 +30,7 @@ def get_metrics(data):
         return None
         
     # AUC-ROC (Final test score)
-    test_scores = data.get('test_score', [])
-    auc_roc = test_scores[-1] if test_scores else 0
+    auc_roc = data.get('final', 0)
     
     # AUC-PR
     auc_pr = data.get('final_test_auc_pr', 0)
