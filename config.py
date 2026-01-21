@@ -3,8 +3,8 @@
 # --- File and Directory Paths ---
 INPUT_TSV = 'dataset.tsv'
 OUTPUT_DIR = 'output'
-FINAL_MODEL_PATH = 'models/xgboost/with_ptms/split_no_viruses/final_model.json'
-BEST_MODEL_PATH = 'models/xgboost/with_ptms/split_no_viruses/best_cv_model.json'
+FINAL_MODEL_PATH = 'models/xgboost/without_ptms/strict/final_model.json'
+BEST_MODEL_PATH = 'models/xgboost/without_ptms/strict/best_cv_model.json'
 EVALUATION_OUTPUT_DIR = 'evaluation_results'
 PDB_DIR = 'pdb_files'
 CLEANED_PDB_DIR = 'cleaned_pdb_files'
@@ -20,7 +20,7 @@ STRUCTURED_DATA_PATH = f'{OUTPUT_DIR}/structured_protein_data.pkl'
 
 FASTA_PATH = f'{OUTPUT_DIR}/all_antigen_sequences.fasta'
 CLUSTER_FILE_PATH = f'{OUTPUT_DIR}/protein_clusters' # CD-HIT adds .clstr
-SPLITS_FILE_PATH = f'{OUTPUT_DIR}/split_clean.json'
+SPLITS_FILE_PATH = f'{OUTPUT_DIR}/split_strict.json'
 CDHIT_THRESHOLD = 0.4
 MAX_CLUSTER_SIZE = 50
 
@@ -54,7 +54,7 @@ SASA_MAX_VALUES = {
 
 # --- Glycosylation Feature Engineering ---
 # A list that can contain 'binary', 'distance', or both. Set to [] to disable.
-GLYCOSYLATION_MODE = ['binary', 'distance']
+GLYCOSYLATION_MODE = []
 MAX_GLYCOSYLATION_DISTANCE = 20.0 # Max distance for the distance feature (in Angstroms)
 
 # --- Model Configuration ---
