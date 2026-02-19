@@ -46,7 +46,13 @@ def generate_ablation_figure(baseline_path, regularized_path, output_dir):
     plt.rcParams.update({
         'font.family': 'sans-serif',
         'font.sans-serif': ['Arial', 'DejaVu Sans'],
-        'font.size': 11
+        'font.size': 14,             # Increased from 11
+        'axes.labelsize': 16,        # Explicitly set large axis labels
+        'axes.titlesize': 16,        # Explicitly set large titles
+        'xtick.labelsize': 14,       # Large tick labels
+        'ytick.labelsize': 14,
+        'legend.fontsize': 14,       # Large legend
+        'lines.linewidth': 2.5       # Thicker lines
     })
     
     # Plot A: Baseline
@@ -131,12 +137,18 @@ def generate_ablation_figure(baseline_path, regularized_path, output_dir):
 if __name__ == "__main__":
     # Paths
     # Assuming the script is run from the project root
-    # and temp_ablation_data is in the project root
+    # and temp_ablation_data is in the paper_code folder
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    baseline_path = os.path.join(base_dir, 'temp_ablation_data', 'baseline', 'results.json')
-    regularized_path = os.path.join(base_dir, 'temp_ablation_data', 'regularized', 'results.json')
+    baseline_path = os.path.join(base_dir, 'paper_code', 'temp_ablation_data', 'baseline', 'results.json')
+    regularized_path = os.path.join(base_dir, 'paper_code', 'temp_ablation_data', 'regularized', 'results.json')
     output_dir = os.path.join(base_dir, 'paper_code', 'figures')
-    
+
+    # Ensure baseline path exists
+    if not os.path.exists(baseline_path):
+        print(f"Error: Baseline file not found at {baseline_path}")
+        exit(1)
+        
+    generate_ablation_figure(baseline_path, regularized_path, output_dir)
     if not os.path.exists(baseline_path):
         print(f"Error: Baseline file not found at {baseline_path}")
         sys.exit(1)
